@@ -181,17 +181,55 @@
 
             // STT Endpoint (only shown for cloud)
             config.stt_provider !== "whisper" ?
-              React.createElement("label", { className: "text-sm" },
-                "STT Endpoint URL",
-                React.createElement("input", {
-                  type: "text",
-                  value: config.stt_endpoint || "",
-                  placeholder: "https://your-stt-endpoint/v1/chat/completions",
-                  onChange: function(e) { setConfig(Object.assign({}, config, { stt_endpoint: e.target.value })); },
-                  style: { display: "block", marginTop: "4px", padding: "6px 8px", width: "100%",
-                           borderRadius: "6px", background: "var(--card-midground, rgba(255,255,255,0.05))",
-                           color: "var(--midground)", border: "1px solid var(--border-color, rgba(255,255,255,0.1))" }
-                })
+              React.createElement("div", null,
+                React.createElement("label", { className: "text-sm" },
+                  "STT Provider",
+                  React.createElement("select", {
+                    value: config.stt_endpoint || "dashscope",
+                    onChange: function(e) {
+                      var presets = {
+                        "dashscope": { endpoint: "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/paraformer-realtime-v2", model: "paraformer-realtime-v2" },
+                        "maas": { endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", model: "qwen3-asr-flash" },
+                        "deepgram": { endpoint: "https://api.deepgram.com/v1/listen", model: "nova-2" },
+                        "custom": { endpoint: config.stt_endpoint, model: config.stt_model }
+                      };
+                      var preset = presets[e.target.value] || presets["custom"];
+                      setConfig(Object.assign({}, config, { stt_endpoint: preset.endpoint, stt_model: preset.model, _stt_preset: e.target.value }));
+                    },
+                    style: { display: "block", marginTop: "4px", padding: "6px 8px", width: "100%",
+                             borderRadius: "6px", background: "var(--card-midground, rgba(255,255,255,0.05))",
+                             color: "var(--midground)", border: "1px solid var(--border-color, rgba(255,255,255,0.1))" }
+                  },
+                    React.createElement("option", { value: "dashscope" }, "DashScope Paraformer (Aliyun)"),
+                    React.createElement("option", { value: "maas" }, "MaaS qwen3-asr-flash (Aliyun)"),
+                    React.createElement("option", { value: "deepgram" }, "Deepgram"),
+                    React.createElement("option", { value: "custom" }, "Custom...")
+                  )
+                ),
+                React.createElement("label", { className: "text-sm", style: { marginTop: "8px", display: "block" } },
+                  "STT Endpoint URL",
+                  React.createElement("input", {
+                    type: "text",
+                    value: config.stt_endpoint || "",
+                    placeholder: "https://your-stt-endpoint/v1/chat/completions",
+                    onChange: function(e) { setConfig(Object.assign({}, config, { stt_endpoint: e.target.value })); },
+                    style: { display: "block", marginTop: "4px", padding: "6px 8px", width: "100%",
+                             borderRadius: "6px", background: "var(--card-midground, rgba(255,255,255,0.05))",
+                             color: "var(--midground)", border: "1px solid var(--border-color, rgba(255,255,255,0.1))" }
+                  })
+                ),
+                React.createElement("label", { className: "text-sm", style: { marginTop: "8px", display: "block" } },
+                  "STT Model",
+                  React.createElement("input", {
+                    type: "text",
+                    value: config.stt_model || "",
+                    placeholder: "paraformer-realtime-v2",
+                    onChange: function(e) { setConfig(Object.assign({}, config, { stt_model: e.target.value })); },
+                    style: { display: "block", marginTop: "4px", padding: "6px 8px", width: "100%",
+                             borderRadius: "6px", background: "var(--card-midground, rgba(255,255,255,0.05))",
+                             color: "var(--midground)", border: "1px solid var(--border-color, rgba(255,255,255,0.1))" }
+                  })
+                )
               ) : null,
 
             // Max tokens

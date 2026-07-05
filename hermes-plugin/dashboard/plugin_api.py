@@ -1,9 +1,10 @@
 """PiHermes plugin API — FastAPI routes for the dashboard."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Request
 import subprocess
 import os
 import json
+import time
 from pathlib import Path
 
 router = APIRouter()
@@ -23,13 +24,11 @@ def _run(cmd: list[str], timeout: int = 10) -> tuple[bool, str, str]:
 
 
 def _pipeline_running() -> bool:
-    """Check if pipeline is running (via pgrep, not just systemd)."""
     ok, stdout, _ = _run(["pgrep", "-f", "beets_voice_full.py"])
     return ok and len(stdout) > 0
 
 
 def _load_config() -> dict:
-    """Load PiHermes config from disk."""
     try:
         with open(CONFIG_PATH) as f:
             return json.load(f)
@@ -39,27 +38,24 @@ def _load_config() -> dict:
             "wake_word": "hey_bob",
             "wake_threshold": 0.65,
             "stt_provider": "cloud",
-            "stt_endpoint": "",
+            "stt_endpoint": "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/paraformer-realtime-v2",
+            "stt_model": "paraformer-realtime-v2",
             "max_tokens": 80,
         }
 
 
 def _save_config(config: dict):
-    """Save PiHermes config to disk."""
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     with open(CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=2)
 
 
 @router.get("/status")
-async def get_status():
-    """Check if voice pipeline is running and return recent log."""
+async def get_status(request: Request):
     running = _pipeline_running()
-
     log_ok, log_out, _ = _run(["tail", "-5", LOG_PATH])
     recent_log = log_out if log_ok else "log unavailable"
 
-    # Get uptime if running
     uptime = ""
     if running:
         ok, pid, _ = _run(["pgrep", "-f", "beets_voice_full.py"])
@@ -75,81 +71,63 @@ async def get_status():
 
 
 @router.post("/restart")
-async def restart_pipeline():
-    """Restart the voice pipeline."""
-    # Kill existing process
+async def restart_pipeline(request: Request):
+    # Kill existing
     _run(["pkill", "-f", "beets_voice_full.py"])
-
-    # Start fresh
-    import time
     time.sleep(1)
 
-    # Start in background
-    subprocess.Popen(
-        [os.path.expanduser("~/.hermes/hermes-agent/venv/bin/python3"),
-         "-u", PIPELINE_SCRIPT],
-        stdout=open(LOG_PATH, "w"),
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-        cwd=str(Path.home()),
-    )
+    # Start fresh
+    venv_python = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/python3")
+    try:
+        subprocess.Popen(
+            [venv_python, "-u", PIPELINE_SCRIPT],
+            stdout=open(LOG_PATH, "w"),
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            cwd=str(Path.home()),
+        )
+    except Exception as e:
+        return {"success": False, "message": f"Start failed: {e}"}
 
-    time.sleep(3)
+    time.sleep(4)
     running = _pipeline_running()
 
     return {
         "success": running,
-        "message": "Pipeline restarted" if running else "Pipeline failed to start - check logs",
+        "message": "Pipeline restarted" if running else "Pipeline may still be starting — check in a few seconds",
     }
 
 
 @router.get("/config")
-async def get_config():
-    """Get current PiHermes configuration."""
+async def get_config(request: Request):
     return _load_config()
 
 
 @router.post("/config")
 async def update_config(
+    request: Request,
     tts_voice: str | None = None,
     wake_word: str | None = None,
     wake_threshold: float | None = None,
     stt_provider: str | None = None,
     stt_endpoint: str | None = None,
+    stt_model: str | None = None,
     max_tokens: int | None = None,
 ):
-    """Update PiHermes configuration. Requires pipeline restart to apply."""
     config = _load_config()
-
     changes = {}
 
-    if tts_voice is not None:
-        config["tts_voice"] = tts_voice
-        changes["tts_voice"] = tts_voice
-
-    if wake_word is not None:
-        config["wake_word"] = wake_word
-        changes["wake_word"] = wake_word
-
-    if wake_threshold is not None:
-        config["wake_threshold"] = wake_threshold
-        changes["wake_threshold"] = wake_threshold
-
-    if stt_provider is not None:
-        config["stt_provider"] = stt_provider
-        changes["stt_provider"] = stt_provider
-
-    if stt_endpoint is not None:
-        config["stt_endpoint"] = stt_endpoint
-        changes["stt_endpoint"] = stt_endpoint
-
-    if max_tokens is not None:
-        config["max_tokens"] = max_tokens
-        changes["max_tokens"] = max_tokens
+    for key, val in [
+        ("tts_voice", tts_voice), ("wake_word", wake_word),
+        ("wake_threshold", wake_threshold), ("stt_provider", stt_provider),
+        ("stt_endpoint", stt_endpoint), ("stt_model", stt_model),
+        ("max_tokens", max_tokens),
+    ]:
+        if val is not None:
+            config[key] = val
+            changes[key] = val
 
     _save_config(config)
-
-    # Also update the running pipeline script
     _apply_config_to_script(config)
 
     return {
@@ -160,62 +138,25 @@ async def update_config(
 
 
 def _apply_config_to_script(config: dict):
-    """Write config values into the pipeline script."""
-    # This updates the key values in beets_voice_full.py
     script_path = PIPELINE_SCRIPT
     if not os.path.exists(script_path):
         return
-
+    import re
     with open(script_path) as f:
         content = f.read()
-
-    # Update known config values via sed-like replacement
-    import re
-
-    # max_tokens
-    content = re.sub(
-        r'"max_tokens": \d+',
-        f'"max_tokens": {config["max_tokens"]}',
-        content,
-    )
-
-    # WAKE_THRESHOLD
-    content = re.sub(
-        r"WAKE_THRESHOLD = [\d.]+",
-        f"WAKE_THRESHOLD = {config['wake_threshold']}",
-        content,
-    )
-
-    # WAKE_WORD
-    content = re.sub(
-        r'WAKE_WORD = "[^"]*"',
-        f'WAKE_WORD = "{config["wake_word"]}"',
-        content,
-    )
-
+    content = re.sub(r'"max_tokens": \d+', f'"max_tokens": {config["max_tokens"]}', content)
+    content = re.sub(r'WAKE_THRESHOLD = [\d.]+', f'WAKE_THRESHOLD = {config["wake_threshold"]}', content)
+    content = re.sub(r'WAKE_WORD = "[^"]*"', f'WAKE_WORD = "{config["wake_word"]}"', content)
     with open(script_path, "w") as f:
         f.write(content)
 
 
 @router.get("/voices")
-async def list_voices():
-    """List available Piper TTS voices."""
+async def list_voices(request: Request):
     voices_dir = Path.home() / ".hermes" / "piper-voices"
     voices = []
     if voices_dir.exists():
         for f in sorted(voices_dir.glob("*.onnx")):
-            name = f.stem  # e.g. "en_US-lessac-medium"
+            name = f.stem
             voices.append({"id": name, "name": name})
     return {"voices": voices}
-
-
-@router.get("/audio-devices")
-async def list_audio_devices():
-    """List available audio capture devices."""
-    ok, stdout, _ = _run(["arecord", "-l"])
-    devices = []
-    if ok:
-        for line in stdout.split("\n"):
-            if "card" in line and "device" in line:
-                devices.append(line.strip())
-    return {"devices": devices if devices else ["No devices found — run arecord -l"]}
