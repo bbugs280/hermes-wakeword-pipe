@@ -4,8 +4,8 @@ import json
 import subprocess
 import os
 
-SERVICE_NAME = "pihermes-voice"
-PIPELINE_SCRIPT = os.path.expanduser("~/pihermes/beets_voice_full.py")
+PIPELINE_SCRIPT = os.path.expanduser("~/beets_voice_full.py")
+LOG_PATH = "/tmp/voice_v21.log"
 
 
 def _run(cmd: list[str]) -> dict:
@@ -19,22 +19,24 @@ def _run(cmd: list[str]) -> dict:
         return {"ok": False, "stdout": "", "stderr": str(e)}
 
 
+def _pipeline_running() -> bool:
+    result = _run(["pgrep", "-f", "beets_voice_full.py"])
+    return result["ok"] and len(result["stdout"]) > 0
+
+
 def register(ctx):
     # ── Tool: pihermes_status ──
     def handle_status(params, **kwargs):
         """Check if the voice pipeline is running."""
         del kwargs
-        result = _run(["systemctl", "is-active", SERVICE_NAME])
-        running = result["ok"] and result["stdout"] == "active"
+        running = _pipeline_running()
 
-        # Try to get last log line for activity check
-        log_tail = _run(["tail", "-3", "/tmp/voice_v21.log"])
+        log_tail = _run(["tail", "-3", LOG_PATH])
         recent = log_tail.get("stdout", "no log") if log_tail["ok"] else "log unavailable"
 
         return json.dumps({
             "success": True,
             "pipeline_running": running,
-            "service": SERVICE_NAME,
             "recent_log": recent[:300],
         })
 
@@ -52,12 +54,31 @@ def register(ctx):
 
     # ── Tool: pihermes_restart ──
     def handle_restart(params, **kwargs):
-        """Restart the voice pipeline service."""
+        """Restart the voice pipeline."""
         del kwargs
-        result = _run(["systemctl", "restart", SERVICE_NAME])
+
+        # Kill existing
+        _run(["pkill", "-f", "beets_voice_full.py"])
+
+        import time
+        time.sleep(1)
+
+        # Start fresh
+        venv_python = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/python3")
+        subprocess.Popen(
+            [venv_python, "-u", PIPELINE_SCRIPT],
+            stdout=open(LOG_PATH, "w"),
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            cwd=os.path.expanduser("~"),
+        )
+
+        time.sleep(3)
+        running = _pipeline_running()
+
         return json.dumps({
-            "success": result["ok"],
-            "message": "Pipeline restarted" if result["ok"] else f"Failed: {result['stderr']}",
+            "success": running,
+            "message": "Pipeline restarted" if running else "Pipeline failed to start — check logs",
         })
 
     ctx.register_tool(
@@ -75,6 +96,6 @@ def register(ctx):
     # ── Hook: log pipeline tool calls ──
     def on_tool_call(tool_name, params, result):
         if tool_name.startswith("pihermes_"):
-            print(f"[pihermes] tool called: {tool_name} → {result[:100]}")
+            print(f"[pihermes] tool called: {tool_name} -> {result[:100]}")
 
     ctx.register_hook("post_tool_call", on_tool_call)
