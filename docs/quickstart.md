@@ -5,7 +5,8 @@
 - Raspberry Pi 5 (or Pi 4)
 - USB microphone + speaker (or combo audio dongle)
 - Hermes Agent installed
-- DeepSeek API key (or any Hermes-compatible provider)
+- LLM API key (any Hermes-compatible provider)
+- STT API key (for cloud speech-to-text; offline whisper.cpp fallback included)
 - Python 3.10+
 
 ## Install (3 commands)
@@ -28,6 +29,21 @@ systemctl --user enable --now pihermes-voice
 2. Click the **PiHermes** tab — you should see "Running" status
 3. Say **"Hey Bob"** near the Pi — it should beep and respond
 
+## Configuration
+
+The voice pipeline supports configurable STT backends. By default it uses cloud STT with local whisper.cpp fallback. To configure:
+
+```bash
+# Edit the pipeline config
+nano ~/.hermes/voice/beets_voice_full.py
+
+# Key settings:
+#   STT provider (cloud endpoint) — configure your preferred STT API
+#   Wake word — change WAKE_WORD and update the .onnx model path
+#   Voice — swap PIPER_MODEL for a different Piper voice
+#   LLM model — change the model in ask_hermes()
+```
+
 ## Troubleshooting
 
 ```bash
@@ -48,9 +64,11 @@ aplay -D plughw:2,0 test.wav
 ## Architecture
 
 ```
-USB Audio → openWakeWord → WebRTC VAD → qwen3-asr-flash (cloud)
+USB Audio → openWakeWord → WebRTC VAD → Cloud STT (configurable)
 → Hermes API (localhost:8642) → Piper TTS → USB Speaker
 ```
+
+Offline whisper.cpp fallback runs automatically if cloud STT is unreachable.
 
 ## Next Steps
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """PiHermes voice pipeline — v21: Production voice assistant for Raspberry Pi.
 
-Full pipeline: openWakeWord → WebRTC VAD → qwen3-asr-flash (cloud STT)
-→ Hermes DeepSeek API → Piper TTS → speaker
+Full pipeline: openWakeWord -> WebRTC VAD -> cloud STT (configurable)
+-> Hermes API -> Piper TTS -> speaker
 
-Features: custom wake word (hey_bob), 5-chime audio UX, language guard,
+Features: custom wake word, 5-chime audio UX, language guard,
 streaming TTS with pre-render, WebRTC VAD, cloud+whisper fallback STT.
 """
 

@@ -97,7 +97,7 @@
         React.createElement(CardContent, null,
           React.createElement("ul", { className: "text-sm text-muted-foreground", style: { lineHeight: "1.8" } },
             React.createElement("li", null, "Wake word: \"Hey Bob\""),
-            React.createElement("li", null, "STT: qwen3-asr-flash (cloud, ~1s)"),
+            React.createElement("li", null, "STT: Cloud (configurable) + offline fallback"),
             React.createElement("li", null, "TTS: Piper (on-device, female voice)"),
             React.createElement("li", null, "Cycle time: ~10s from wake to response"),
             React.createElement("li", null, "Service: pihermes-voice (systemd)")
