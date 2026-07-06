@@ -1,5 +1,5 @@
 name: pihermes
-version: "0.1.0"
+version: "0.4.0"
 description: >
   PiHermes — AI Voice Kit admin console. Manage your Raspberry Pi voice assistant:
   wake word config, voice settings, pipeline status, and one-click restart.

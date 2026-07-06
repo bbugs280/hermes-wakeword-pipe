@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PiHermes voice pipeline — v21: Production voice assistant for Raspberry Pi.
+"""PiHermes voice pipeline — v0.4.0: Production voice assistant for Raspberry Pi.
 
 Full pipeline: openWakeWord -> WebRTC VAD -> cloud STT (configurable)
 -> Hermes API -> Piper TTS -> speaker
