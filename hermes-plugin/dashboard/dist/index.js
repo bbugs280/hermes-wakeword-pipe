@@ -29,8 +29,17 @@
     var uptime = _uptime[0];
     var setUptime = _uptime[1];
 
+    // Shared fetch helper — sends session token for dashboard auth
+    var sessionToken = window.__HERMES_SESSION_TOKEN__ || "";
+    function apiFetch(url, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers["X-Hermes-Session-Token"] = sessionToken;
+      return fetch(url, opts);
+    }
+
     function fetchStatus() {
-      fetch("/api/plugins/pihermes/status")
+      apiFetch("/api/plugins/pihermes/status")
         .then(function(r) { return r.json(); })
         .then(function(data) {
           setStatus(data.pipeline_running ? "running" : "stopped");
@@ -41,7 +50,7 @@
     }
 
     function fetchConfig() {
-      fetch("/api/plugins/pihermes/config")
+      apiFetch("/api/plugins/pihermes/config")
         .then(function(r) { return r.json(); })
         .then(function(data) { setConfig(data); })
         .catch(function() {});
@@ -56,7 +65,7 @@
 
     function restartPipeline() {
       setStatus("loading");
-      fetch("/api/plugins/pihermes/restart", { method: "POST" })
+      apiFetch("/api/plugins/pihermes/restart", { method: "POST" })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.success) { setTimeout(fetchStatus, 3000); }
@@ -68,7 +77,7 @@
     function saveConfig() {
       if (!config) return;
       setSaveMsg("Saving...");
-      fetch("/api/plugins/pihermes/config", {
+      apiFetch("/api/plugins/pihermes/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config)
