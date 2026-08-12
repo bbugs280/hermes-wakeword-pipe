@@ -1,4 +1,4 @@
-"""PiHermes plugin API — FastAPI routes for the dashboard."""
+"""Hermes Wakeword Pipe plugin API — FastAPI routes for the dashboard."""
 
 from fastapi import APIRouter, Request
 import subprocess
@@ -8,9 +8,9 @@ import time
 from pathlib import Path
 
 router = APIRouter()
-PIPELINE_SCRIPT = str(Path.home() / "beets_voice_full.py")
+PIPELINE_SCRIPT = str(Path.home() / "hermes_voice.py")
 LOG_PATH = "/tmp/voice_v21.log"
-CONFIG_PATH = str(Path.home() / ".hermes" / "pihermes_config.json")
+CONFIG_PATH = str(Path.home() / ".hermes" / "hermes-wakeword-pipe_config.json")
 
 
 def _run(cmd: list[str], timeout: int = 10) -> tuple[bool, str, str]:
@@ -24,7 +24,7 @@ def _run(cmd: list[str], timeout: int = 10) -> tuple[bool, str, str]:
 
 
 def _pipeline_running() -> bool:
-    ok, stdout, _ = _run(["pgrep", "-f", "beets_voice_full.py"])
+    ok, stdout, _ = _run(["pgrep", "-f", "hermes_voice.py"])
     return ok and len(stdout) > 0
 
 
@@ -58,7 +58,7 @@ async def get_status(request: Request):
 
     uptime = ""
     if running:
-        ok, pid, _ = _run(["pgrep", "-f", "beets_voice_full.py"])
+        ok, pid, _ = _run(["pgrep", "-f", "hermes_voice.py"])
         if ok:
             ok2, etime, _ = _run(["ps", "-o", "etime=", "-p", pid.split("\n")[0]])
             uptime = etime if ok2 else ""
@@ -73,7 +73,7 @@ async def get_status(request: Request):
 @router.post("/restart")
 async def restart_pipeline(request: Request):
     # Kill existing
-    _run(["pkill", "-f", "beets_voice_full.py"])
+    _run(["pkill", "-f", "hermes_voice.py"])
     time.sleep(1)
 
     # Start fresh

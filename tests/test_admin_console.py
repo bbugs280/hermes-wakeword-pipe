@@ -1,7 +1,7 @@
 """
-PiHermes Admin Console — Playwright E2E Tests
-Tests the Hermes dashboard with PiHermes plugin tab.
-SSH tunnel required: ssh -L 9119:localhost:9119 beets3d@hermes-pi
+Hermes Wakeword Pipe Admin Console — Playwright E2E Tests
+Tests the Hermes dashboard with Hermes Wakeword Pipe plugin tab.
+SSH tunnel required: ssh -L 9119:localhost:9119 home@vincent-mac-m4.lan
 Run: python -m pytest tests/test_admin_console.py -v --browser=chromium -s
 """
 
@@ -48,25 +48,25 @@ def test_dashboard_has_navigation(page: Page):
     assert links > 0, "No interactive elements found"
 
 
-# ── Test 3: PiHermes API status endpoint ──
+# ── Test 3: Hermes Wakeword Pipe API status endpoint ──
 
-def test_pihermes_api_status(page: Page):
-    """PiHermes plugin API /status should be accessible."""
-    response = page.request.get(f"{BASE}/api/plugins/pihermes/status")
+def test_hermes_wakeword_pipe_api_status(page: Page):
+    """Hermes Wakeword Pipe plugin API /status should be accessible."""
+    response = page.request.get(f"{BASE}/api/plugins/hermes-wakeword-pipe/status")
     print(f"\n  /status: HTTP {response.status}")
     # 401 means endpoint exists but needs auth — that's acceptable
     # 200 means it's working unauthenticated
     # 404 means the endpoint doesn't exist at all
-    assert response.status != 404, "PiHermes API endpoint /status not found (404)"
+    assert response.status != 404, "Hermes Wakeword Pipe API endpoint /status not found (404)"
 
 
-# ── Test 4: PiHermes API restart endpoint ──
+# ── Test 4: Hermes Wakeword Pipe API restart endpoint ──
 
-def test_pihermes_api_restart(page: Page):
-    """PiHermes plugin API /restart should exist."""
-    response = page.request.post(f"{BASE}/api/plugins/pihermes/restart")
+def test_hermes_wakeword_pipe_api_restart(page: Page):
+    """Hermes Wakeword Pipe plugin API /restart should exist."""
+    response = page.request.post(f"{BASE}/api/plugins/hermes-wakeword-pipe/restart")
     print(f"\n  /restart: HTTP {response.status}")
-    assert response.status != 404, "PiHermes API endpoint /restart not found (404)"
+    assert response.status != 404, "Hermes Wakeword Pipe API endpoint /restart not found (404)"
 
 
 # ── Test 5: Other bundled plugins are visible ──
@@ -101,18 +101,18 @@ def test_dashboard_no_console_errors(page: Page):
     assert len(critical_errors) == 0, f"Critical console errors: {critical_errors[:3]}"
 
 
-# ── Test 7: PiHermes tab or plugin is discoverable ──
+# ── Test 7: Hermes Wakeword Pipe tab or plugin is discoverable ──
 
-def test_pihermes_plugin_discoverable(page: Page):
-    """The word 'PiHermes' or 'pihermes' should appear in dashboard source."""
+def test_hermes_wakeword_pipe_plugin_discoverable(page: Page):
+    """The word 'Hermes Wakeword Pipe' or 'hermes-wakeword-pipe' should appear in dashboard source."""
     page.goto(BASE, timeout=15000)
     page.wait_for_timeout(3000)
     html = page.content()
     body_text = page.locator("body").inner_text().lower()
-    print(f"\n  'pihermes' in HTML: {'pihermes' in html.lower()}")
-    print(f"  'pihermes' in body text: {'pihermes' in body_text}")
+    print(f"\n  'hermes-wakeword-pipe' in HTML: {'hermes-wakeword-pipe' in html.lower()}")
+    print(f"  'hermes-wakeword-pipe' in body text: {'hermes-wakeword-pipe' in body_text}")
     print(f"  Body text sample: {body_text[:300]}")
-    # Ideally pihermes appears — if not, the plugin isn't loading
+    # Ideally hermes-wakeword-pipe appears — if not, the plugin isn't loading
     assert (
-        "pihermes" in html.lower() or "pihermes" in body_text
-    ), "PiHermes plugin not found in dashboard — not loading"
+        "hermes-wakeword-pipe" in html.lower() or "hermes-wakeword-pipe" in body_text
+    ), "Hermes Wakeword Pipe plugin not found in dashboard — not loading"

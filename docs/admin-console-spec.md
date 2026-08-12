@@ -1,21 +1,21 @@
-# PiHermes Admin Console — Specification v0.1
+# Hermes Wakeword Pipe Admin Console — Specification v0.1
 
 ## Overview
 
-The PiHermes admin console is a **dashboard plugin** for Hermes Agent. It appears as a "PiHermes" tab in the Hermes web dashboard (http://<pi>:9119) and provides configuration and monitoring for the voice pipeline.
+The Hermes Wakeword Pipe admin console is a **dashboard plugin** for Hermes Agent. It appears as a "Hermes Wakeword Pipe" tab in the Hermes web dashboard (http://<pi>:9119) and provides configuration and monitoring for the voice pipeline.
 
 ## Architecture
 
 ```
-Browser (Hermes Dashboard)          Raspberry Pi 5
+Browser (Hermes Dashboard)          Linux machine
 ┌──────────────────────────┐       ┌─────────────────────────┐
-│ PiHermes tab (React)     │──REST─│ plugin_api.py (FastAPI)  │
-│  → status card           │       │  → /api/plugins/pihermes/│
+│ Hermes Wakeword Pipe tab (React)     │──REST─│ plugin_api.py (FastAPI)  │
+│  → status card           │       │  → /api/plugins/hermes-wakeword-pipe/│
 │  → voice config          │       │     status, restart,     │
 │  → wake word picker      │       │     config, audio-test   │
 │  → log viewer            │       │       ↓                  │
-└──────────────────────────┘       │ systemctl pihermes-voice │
-                                   │ beets_voice_full.py      │
+└──────────────────────────┘       │ systemctl hermes-wakeword-pipe-voice │
+                                   │ hermes_voice.py      │
                                    └─────────────────────────┘
 ```
 
@@ -37,7 +37,7 @@ Shows pipeline health at a glance.
 └─────────────────────────────────────────┘
 ```
 
-**API endpoint:** `GET /api/plugins/pihermes/status`
+**API endpoint:** `GET /api/plugins/hermes-wakeword-pipe/status`
 **Response:** `{ pipeline_running, uptime, last_query, last_response, cycle_time_ms }`
 
 ### 2. Voice Configuration
@@ -60,8 +60,8 @@ Control how the assistant sounds.
 └─────────────────────────────────────────┘
 ```
 
-**API:** `GET /api/plugins/pihermes/config` → `{ voice, speed, brevity }`
-**API:** `POST /api/plugins/pihermes/config` → update settings
+**API:** `GET /api/plugins/hermes-wakeword-pipe/config` → `{ voice, speed, brevity }`
+**API:** `POST /api/plugins/hermes-wakeword-pipe/config` → update settings
 
 ### 3. Wake Word Configuration
 
@@ -81,7 +81,7 @@ Pick or customize the activation phrase.
 └─────────────────────────────────────────┘
 ```
 
-**API:** `GET /api/plugins/pihermes/config` → `{ wake_word, wake_threshold }`
+**API:** `GET /api/plugins/hermes-wakeword-pipe/config` → `{ wake_word, wake_threshold }`
 
 ### 4. LLM Configuration
 
@@ -107,7 +107,7 @@ The AI brain behind the voice.
 └─────────────────────────────────────────┘
 ```
 
-**API:** `POST /api/plugins/pihermes/config` → update model/provider/key/prompt
+**API:** `POST /api/plugins/hermes-wakeword-pipe/config` → update model/provider/key/prompt
 
 ### 5. Audio Hardware
 
@@ -128,7 +128,7 @@ Test and configure microphone and speaker.
 └─────────────────────────────────────────┘
 ```
 
-**API:** `POST /api/plugins/pihermes/audio-test` → `{ test_type: "mic"|"speaker", result }`
+**API:** `POST /api/plugins/hermes-wakeword-pipe/audio-test` → `{ test_type: "mic"|"speaker", result }`
 
 ### 6. Logs
 
@@ -150,19 +150,19 @@ Live pipeline output.
 └─────────────────────────────────────────┘
 ```
 
-**API:** `GET /api/plugins/pihermes/logs?lines=50&filter=all|errors`
+**API:** `GET /api/plugins/hermes-wakeword-pipe/logs?lines=50&filter=all|errors`
 
 ## Data Flow
 
 ```
 User clicks "Restart"
-  → POST /api/plugins/pihermes/restart
-  → plugin_api.py: subprocess.run(["systemctl", "restart", "pihermes-voice"])
+  → POST /api/plugins/hermes-wakeword-pipe/restart
+  → plugin_api.py: subprocess.run(["systemctl", "restart", "hermes-wakeword-pipe-voice"])
   → JSON response: { success: true }
   → Dashboard updates status badge
 
 User changes voice
-  → POST /api/plugins/pihermes/config { voice: "ryan-high" }
+  → POST /api/plugins/hermes-wakeword-pipe/config { voice: "ryan-high" }
   → plugin_api.py: write config → restart pipeline
   → JSON response: { success: true, changes: { voice: "ryan-high" } }
   → Dashboard shows confirmation + new voice in status

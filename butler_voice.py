@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-"""PiHermes voice pipeline — v0.4.0: Production voice assistant for Raspberry Pi.
+"""Butler voice pipeline — wake word "hey_jarvis" -> STT -> Butler Hermes -> CD002 speaker.
 
-Full pipeline: openWakeWord -> WebRTC VAD -> cloud STT (configurable)
--> Hermes API -> Piper TTS -> speaker
-
-Features: custom wake word, 5-chime audio UX, language guard,
-streaming TTS with pre-render, WebRTC VAD, cloud+whisper fallback STT.
+Adapted from Hermes Wakeword Pipe v0.4.0 for N150 Butler (Ubuntu 24.04).
 """
 
 import subprocess, sys, os, json, time, urllib.request, urllib.error, threading, tempfile, io
@@ -14,25 +10,27 @@ from pathlib import Path
 import wave
 
 # ── Configuration ──────────────────────────────────────
-WAKE_WORD = "hey_bob"
+WAKE_WORD = "hey_jarvis"
 WAKE_THRESHOLD = 0.65
 WAKE_COOLDOWN = 3.0
 SAMPLE_RATE = 16000
 CHUNK_MS = 80
 CHUNK_SIZE = int(SAMPLE_RATE * CHUNK_MS / 1000)
 
-AUDIO_DEVICE = "plughw:2,0"
-SPEAKER_DEVICE = "plughw:3,0"
+# Butler hardware: mic=card 1 (USB FS AUDIO), speaker=card 2 (CD002 Jieli)
+AUDIO_DEVICE = "plughw:1,0"
+SPEAKER_DEVICE = "plughw:2,0"
 
-SILENCE_THRESHOLD = 40
-SILENCE_DURATION = 1.5
+VAD_AGGRESSIVENESS = 2
+VAD_SILENCE_SECS = 1.2
+VAD_FRAME_MS = 30
 MAX_RECORD_SECS = 10
-MIN_RECORD_SECS = 0.5
 
-HERMES_API_URL = "http://localhost:8642/v1/chat/completions"
+# Butler Hermes API (profile: butler)
+HERMES_API_URL = "http://localhost:8643/v1/chat/completions"
 
 def _load_api_key() -> str:
-    env_path = str(Path.home() / ".hermes/.env")
+    env_path = str(Path.home() / ".hermes/profiles/butler/.env")
     try:
         with open(env_path) as f:
             for line in f:
@@ -43,7 +41,8 @@ def _load_api_key() -> str:
         pass
     return ""
 
-HERMES_API_KEY=_load_api_key()
+HERMES_API_KEY = _load_api_key()
+
 # Cloud ASR (DashScope MaaS qwen3-asr-flash)
 ASR_ENABLED = True
 ASR_KEY = "***REMOVED***"
@@ -51,15 +50,7 @@ ASR_BASE = "https://ws-4jinhjc7i3rl678j.cn-beijing.maas.aliyuncs.com/compatible-
 ASR_MODEL = "qwen3-asr-flash"
 ASR_TIMEOUT = 10
 
-# VAD (WebRTC — lightweight, no GPU needed)
-VAD_AGGRESSIVENESS = 2   # 0=least, 3=most aggressive
-VAD_SILENCE_SECS = 1.2    # stop after this many seconds of silence
-VAD_FRAME_MS = 30
-
-# whisper.cpp
-WHISPER_CLI = str(Path.home() / "whisper-bin-ubuntu-arm64/whisper-cli")
-WHISPER_MODEL = str(Path.home() / "ggml-tiny.en.bin")
-WHISPER_LIB = str(Path.home() / "whisper-bin-ubuntu-arm64")
+# Piper TTS
 PIPER_MODEL = str(Path.home() / ".hermes/piper-voices/en_US-lessac-medium.onnx")
 
 
@@ -92,7 +83,6 @@ def play_raw(raw_audio: bytes, sample_rate: int = 22050):
 
 
 def record_until_silence(proc_stdout) -> bytes | None:
-    """Record speech using WebRTC VAD — stops when user stops talking."""
     import webrtcvad
     vad = webrtcvad.Vad(VAD_AGGRESSIVENESS)
 
@@ -121,19 +111,17 @@ def record_until_silence(proc_stdout) -> bytes | None:
             break
 
     if not speech_detected:
-        log("\u26a0 No speech detected by VAD")
+        log("No speech detected by VAD")
         return None
 
     duration = len(frames) * VAD_FRAME_MS / 1000
-    log(f"\U0001f3a4 Recorded {duration:.1f}s")
+    log(f"Recorded {duration:.1f}s")
     return b"".join(frames)
 
 
 def transcribe(pcm_data: bytes) -> str | None:
-    """Transcribe via cloud ASR (qwen3-asr-flash) with whisper fallback."""
-    import wave, base64
+    import base64
 
-    # Convert PCM to WAV in memory
     audio = np.frombuffer(pcm_data, dtype=np.int16)
     audio = np.clip(audio * 3, -32768, 32767).astype(np.int16)
 
@@ -143,7 +131,6 @@ def transcribe(pcm_data: bytes) -> str | None:
         wf.writeframes(audio.tobytes())
     wav_bytes = buf.getvalue()
 
-    # Try cloud ASR first
     if ASR_ENABLED:
         try:
             t0 = time.time()
@@ -173,41 +160,16 @@ def transcribe(pcm_data: bytes) -> str | None:
             if text:
                 log(f'STT (cloud, {ms:.0f}ms): "{text}"')
                 return text
-            log(f"Cloud empty ({ms:.0f}ms), falling back to whisper")
+            log(f"Cloud empty ({ms:.0f}ms)")
+            return None
         except Exception as e:
-            log(f"Cloud STT failed ({e}), falling back to whisper")
+            log(f"Cloud STT failed: {e}")
+            return None
 
-    # Whisper fallback
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        wav_path = f.name
-    with open(wav_path, "wb") as f:
-        f.write(wav_bytes)
-
-    try:
-        t0 = time.time()
-        env = os.environ.copy()
-        env["LD_LIBRARY_PATH"] = WHISPER_LIB
-        result = subprocess.run(
-            [WHISPER_CLI, "-m", WHISPER_MODEL, "-f", wav_path,
-             "--no-timestamps", "-l", "en", "-t", "2"],
-            capture_output=True, text=True, timeout=30, env=env)
-        ms = (time.time() - t0) * 1000
-        text = result.stdout.strip()
-        if text:
-            log(f'STT (whisper, {ms:.0f}ms): "{text}"')
-            return text
-        log(f"Whisper empty ({ms:.0f}ms)")
-        return None
-    except subprocess.TimeoutExpired:
-        log("STT timed out")
-        return None
-    finally:
-        Path(wav_path).unlink(missing_ok=True)
-
+    return None
 
 
 def is_non_english(text: str) -> bool:
-    """Detect CJK characters in STT output."""
     for ch in text:
         cp = ord(ch)
         if (0x4E00 <= cp <= 0x9FFF or 0x3040 <= cp <= 0x30FF or 
@@ -215,15 +177,11 @@ def is_non_english(text: str) -> bool:
             return True
     return False
 
+
 def ask_hermes(text: str) -> str:
     payload = json.dumps({
         "model": "hermes-agent",
         "messages": [
-            {"role": "system", "content": (
-                "You are Bob, a voice assistant. Answer in ONE short sentence only. "
-                "Under 20 words. No lists, no markdown, no emoji. "
-                "Do NOT use tools — answer from your knowledge immediately."
-            )},
             {"role": "user", "content": text},
         ],
         "max_tokens": 80, "temperature": 0.7,
@@ -240,13 +198,11 @@ def ask_hermes(text: str) -> str:
 
 
 def speak(text: str):
-    """Stream TTS v4 — render all audio first, then play continuously.
-    No mid-speech gaps. Trade: ~2s startup delay for smooth playback."""
     clean = text.replace("*", "").replace("`", "").replace("#", "").replace("\n", ". ").strip()
-    if not clean: return
-    log(f"🔊 Speaking ({len(clean)} chars)")
+    if not clean:
+        return
+    log(f"Speaking ({len(clean)} chars)")
 
-    # Render ALL audio first (Piper is slow — 500-5000ms to render)
     piper = subprocess.Popen(
         [sys.executable, "-m", "piper", "--model", PIPER_MODEL, "--output-raw"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
@@ -256,30 +212,27 @@ def speak(text: str):
         piper.stdin.close()
     threading.Thread(target=feed, daemon=True).start()
 
-    # Collect ALL audio into buffer
     audio_chunks = []
     while True:
         chunk = piper.stdout.read(65536)
         if not chunk:
             break
         audio_chunks.append(chunk)
-    
     piper.wait()
-    
+
     if not audio_chunks:
         return
-    
+
     full_audio = b"".join(audio_chunks)
     duration = len(full_audio) / 2 / 22050
     log(f"  Rendered {duration:.1f}s audio, playing...")
 
-    # Play continuously — no gaps because audio is pre-rendered
-    aplay = subprocess.run(
+    subprocess.run(
         ["aplay", "-q", "-D", SPEAKER_DEVICE, "-f", "S16_LE", "-r", "22050", "-c", "1"],
         input=full_audio, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         timeout=30)
-    
-    log(f"  Done playing")
+    log("  Done playing")
+
 
 def main():
     START_CHIME = chime_start()
@@ -290,25 +243,28 @@ def main():
         tone(600, 100), tone(0, 80), tone(800, 100), tone(0, 80), tone(600, 150)]).tobytes()
 
     log("=" * 55)
-    log("PiHermes Voice v21 — Production")
-    log(f"  Wake: '{WAKE_WORD}' | STT: cloud qwen3-asr-flash | TTS: Piper lessac (female) | VAD: WebRTC")
-    log(f"  max_tokens: 80 | threshold: {WAKE_THRESHOLD} | cooldown: {WAKE_COOLDOWN}s")
+    log("Butler Voice Pipeline — Jarvis")
+    log(f"  Wake: '{WAKE_WORD}' | STT: cloud qwen3-asr-flash | TTS: Piper lessac")
+    log(f"  Hermes: {HERMES_API_URL} (butler profile)")
     log(f"  Mic: {AUDIO_DEVICE} | Speaker: {SPEAKER_DEVICE}")
     log("=" * 55)
 
-    os.system("pkill -f 'arecord.*plughw:2' 2>/dev/null || true")
+    # Kill stale arecord processes
+    os.system(f"pkill -f 'arecord.*{AUDIO_DEVICE}' 2>/dev/null || true")
     time.sleep(0.3)
 
+    # Test Hermes API
     log("Testing Hermes API...")
     test_resp = ask_hermes("Say 'I am online' and nothing else.")
     log(f"API: {test_resp[:60]}")
 
-    speak("Bob ready.")
+    speak("Jarvis online.")
 
+    # Load wake word model
     log("Loading wake word model...")
     from openwakeword.model import Model
-    model = Model(wakeword_models=["/home/beets3d/.hermes/hermes-agent/venv/lib/python3.11/site-packages/openwakeword/resources/models/hey_bob_v0.1.onnx"], inference_framework="onnx")
-    log(f"✅ Ready. Say '{WAKE_WORD}' to talk to me.")
+    model = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+    log(f"Ready. Say '{WAKE_WORD}' to talk to me.")
 
     arecord_cmd = ["arecord", "-q", "-D", AUDIO_DEVICE, "-f", "S16_LE", "-r", str(SAMPLE_RATE), "-c", "1"]
 
@@ -327,7 +283,8 @@ def main():
                 ret = mic_proc.poll()
                 if ret is not None:
                     err = mic_proc.stderr.read().decode(errors="ignore").strip()
-                    if err: log(f"Mic error: {err}")
+                    if err:
+                        log(f"Mic error: {err}")
                 restart_count += 1
                 if restart_count % 10 == 0:
                     log(f"Mic restarted {restart_count} times — check USB device")
@@ -337,11 +294,11 @@ def main():
 
             audio = np.frombuffer(raw, dtype=np.int16)
             prediction = model.predict(audio)
-            score = prediction.get("hey_bob_v0.1", 0)
+            score = prediction.get("hey_jarvis", 0)
 
             if score > WAKE_THRESHOLD and time.time() > cooldown_until:
                 t_cycle = time.time()
-                log(f"🔔 Wake word! (score: {score:.3f})")
+                log(f"Wake word! (score: {score:.3f})")
                 threading.Thread(target=play_raw, args=(START_CHIME,), daemon=True).start()
 
                 mic_proc.terminate(); mic_proc.wait()
@@ -369,11 +326,10 @@ def main():
                     threading.Thread(target=play_raw, args=(ERROR_CHIME,), daemon=True).start()
                     continue
 
-                # Truncate long queries — they trigger deep tool calls
                 query_text = text[:100] if len(text) > 100 else text
                 if len(text) > 100:
-                    log(f'Truncated query from {len(text)}→{len(query_text)} chars')
-                # Language guard: non-English STT → skip
+                    log(f'Truncated query from {len(text)} to {len(query_text)} chars')
+
                 if is_non_english(text):
                     log(f"Non-English detected, skipping: {text}")
                     speak("Sorry, I only speak English right now.")
@@ -381,9 +337,9 @@ def main():
                     cooldown_until = time.time() + WAKE_COOLDOWN
                     continue
 
-                log(f'🤔 Asking Bob: "{query_text}"...')
+                log(f'Asking Jarvis: "{query_text}"...')
                 t_api = time.time()
-                # Progress dots while waiting for API (feels faster)
+
                 progress_done = threading.Event()
                 def show_progress():
                     for _ in range(10):
@@ -393,26 +349,25 @@ def main():
                         if not progress_done.is_set():
                             sys.stdout.write(".")
                             sys.stdout.flush()
-                progress_thread = threading.Thread(target=show_progress, daemon=True)
-                progress_thread.start()
+                threading.Thread(target=show_progress, daemon=True).start()
+
                 response = ask_hermes(query_text)
                 progress_done.set()
-                sys.stdout.write("\n")
-                sys.stdout.flush()
+                sys.stdout.write("\n"); sys.stdout.flush()
                 api_ms = (time.time() - t_api) * 1000
-                log(f"🤖 Response ({api_ms:.0f}ms): {response}")
+                log(f"Response ({api_ms:.0f}ms): {response}")
 
                 speak(response)
                 threading.Thread(target=play_raw, args=(DONE_CHIME,), daemon=True).start()
 
                 total_s = time.time() - t_cycle
-                log(f"⏱️  Total cycle: {total_s:.1f}s")
+                log(f"Total cycle: {total_s:.1f}s")
 
                 cooldown_until = time.time() + WAKE_COOLDOWN
                 log("Ready for next wake word...")
 
     except KeyboardInterrupt:
-        log("\nShutting down...")
+        log("Shutting down...")
     finally:
         mic_proc.terminate(); mic_proc.wait()
         log("Goodbye!")

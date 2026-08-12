@@ -1,10 +1,10 @@
-"""PiHermes plugin for Hermes Agent — admin tools for the voice pipeline."""
+"""Hermes Wakeword Pipe plugin for Hermes Agent — admin tools for the voice pipeline."""
 
 import json
 import subprocess
 import os
 
-PIPELINE_SCRIPT = os.path.expanduser("~/beets_voice_full.py")
+PIPELINE_SCRIPT = os.path.expanduser("~/hermes_voice.py")
 LOG_PATH = "/tmp/voice_v21.log"
 
 
@@ -20,12 +20,12 @@ def _run(cmd: list[str]) -> dict:
 
 
 def _pipeline_running() -> bool:
-    result = _run(["pgrep", "-f", "beets_voice_full.py"])
+    result = _run(["pgrep", "-f", "hermes_voice.py"])
     return result["ok"] and len(result["stdout"]) > 0
 
 
 def register(ctx):
-    # ── Tool: pihermes_status ──
+    # ── Tool: hermes-wakeword-pipe_status ──
     def handle_status(params, **kwargs):
         """Check if the voice pipeline is running."""
         del kwargs
@@ -41,24 +41,24 @@ def register(ctx):
         })
 
     ctx.register_tool(
-        name="pihermes_status",
-        toolset="pihermes",
+        name="hermes-wakeword-pipe_status",
+        toolset="hermes-wakeword-pipe",
         schema={
-            "name": "pihermes_status",
-            "description": "Check whether the PiHermes voice pipeline is running on this machine.",
+            "name": "hermes-wakeword-pipe_status",
+            "description": "Check whether the Hermes Wakeword Pipe voice pipeline is running on this machine.",
             "parameters": {"type": "object", "properties": {}},
         },
         handler=handle_status,
-        description="Check whether the PiHermes voice pipeline is running.",
+        description="Check whether the Hermes Wakeword Pipe voice pipeline is running.",
     )
 
-    # ── Tool: pihermes_restart ──
+    # ── Tool: hermes-wakeword-pipe_restart ──
     def handle_restart(params, **kwargs):
         """Restart the voice pipeline."""
         del kwargs
 
         # Kill existing
-        _run(["pkill", "-f", "beets_voice_full.py"])
+        _run(["pkill", "-f", "hermes_voice.py"])
 
         import time
         time.sleep(1)
@@ -82,20 +82,20 @@ def register(ctx):
         })
 
     ctx.register_tool(
-        name="pihermes_restart",
-        toolset="pihermes",
+        name="hermes-wakeword-pipe_restart",
+        toolset="hermes-wakeword-pipe",
         schema={
-            "name": "pihermes_restart",
-            "description": "Restart the PiHermes voice pipeline service.",
+            "name": "hermes-wakeword-pipe_restart",
+            "description": "Restart the Hermes Wakeword Pipe voice pipeline service.",
             "parameters": {"type": "object", "properties": {}},
         },
         handler=handle_restart,
-        description="Restart the PiHermes voice pipeline.",
+        description="Restart the Hermes Wakeword Pipe voice pipeline.",
     )
 
     # ── Hook: log pipeline tool calls ──
     def on_tool_call(tool_name, params, result):
-        if tool_name.startswith("pihermes_"):
-            print(f"[pihermes] tool called: {tool_name} -> {result[:100]}")
+        if tool_name.startswith("hermes-wakeword-pipe_"):
+            print(f"[hermes-wakeword-pipe] tool called: {tool_name} -> {result[:100]}")
 
     ctx.register_hook("post_tool_call", on_tool_call)

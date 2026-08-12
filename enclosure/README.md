@@ -1,20 +1,20 @@
-# Enclosure — PiHermes Kit Components
+# Enclosure — Hermes Wakeword Pipe Kit Components
 
-The PiHermes enclosure is more than a 3D-printed case. Each kit ships with everything you need to run — just add your own Raspberry Pi 5.
+The Hermes Wakeword Pipe enclosure is more than a 3D-printed case. Each kit ships with everything you need to run — just add your own Linux machine.
 
 ## Kit Contents
 
 - **3D-printed enclosure** — Beets3D quality (sandstone or SLA resin)
 - **USB-C power supply** — powers your Pi 5 via standard USB-C
 - **USB mic/speaker combo** — tested and acoustically matched
-- **Pre-flashed 32GB SD card** — Raspberry Pi OS + Hermes + voice stack
+- **Pre-flashed 32GB SD card** — Linux OS + Hermes + voice stack
 - **Internal cable routing** — clean channels for power + USB audio
 
 ## 3D-Printed Parts (STL Files)
 
 (Coming soon — Beets3D designs in progress)
 
-- `pi5-case.stl` — Main enclosure body, fits Raspberry Pi 5
+- `pi5-case.stl` — Main enclosure body, fits Linux machine
 - `usb-dongle-mount.stl` — Mount for USB audio dongle (AB13X or equivalent)
 - `ventilation-grill.stl` — Top/bottom vent covers for airflow
 - `power-cable-channel.stl` — Internal routing guide for USB-C power cable

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# PiHermes setup — one-command installer for the voice pipeline + Hermes plugin.
+# Hermes Wakeword Pipe setup — one-command installer for the voice pipeline + Hermes plugin.
 #
 # Usage: bash setup.sh
 #
 # Installs:
 #   1. Voice pipeline deps (openWakeWord, piper-tts, webrtcvad, numpy)
-#   2. Plugin into ~/.hermes/plugins/pihermes/
+#   2. Plugin into ~/.hermes/plugins/hermes-wakeword-pipe/
 #   3. Systemd service for auto-start on boot
 #   4. Voice models (Piper en_US-lessac-medium, custom wake word)
 
@@ -18,12 +18,12 @@ NC='\033[0m'
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 HERMES_VENV="${HOME}/.hermes/hermes-agent/venv"
-HERMES_PLUGINS="${HOME}/.hermes/plugins/pihermes"
+HERMES_PLUGINS="${HOME}/.hermes/plugins/hermes-wakeword-pipe"
 VOICE_DIR="${HOME}/.hermes/voice"
 PIPER_VOICES="${HOME}/.hermes/piper-voices"
 
 echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}   PiHermes Voice Kit Installer${NC}"
+echo -e "${GREEN}   Hermes Wakeword Pipe Voice Kit Installer${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo ""
 
@@ -39,7 +39,7 @@ fi
 if ! grep -q "API_SERVER_ENABLED=true" "${HOME}/.hermes/.env" 2>/dev/null; then
     echo -e "${YELLOW}! Hermes API server not enabled. Adding to .env...${NC}"
     echo "API_SERVER_ENABLED=true" >> "${HOME}/.hermes/.env"
-    echo "API_SERVER_KEY=pihermes-local-$(openssl rand -hex 8)" >> "${HOME}/.hermes/.env"
+    echo "API_SERVER_KEY=hermes-wakeword-pipe-local-$(openssl rand -hex 8)" >> "${HOME}/.hermes/.env"
     echo -e "${GREEN}+ API server enabled${NC}"
 fi
 
@@ -57,7 +57,7 @@ echo -e "${GREEN}+ Plugin installed to $HERMES_PLUGINS${NC}"
 # ── 4. Copy voice pipeline ──────────────────────────
 echo -e "${YELLOW}[4/5] Installing voice pipeline...${NC}"
 mkdir -p "$VOICE_DIR"
-cp "$REPO_DIR/beets_voice_full.py" "$VOICE_DIR/"
+cp "$REPO_DIR/hermes_voice.py" "$VOICE_DIR/"
 echo -e "${GREEN}+ Pipeline installed to $VOICE_DIR${NC}"
 
 # Download Piper voice model if not present
@@ -75,7 +75,7 @@ fi
 echo -e "${YELLOW}[5/5] Installing systemd service...${NC}"
 
 SERVICE_CONTENT="[Unit]
-Description=PiHermes Voice Pipeline
+Description=Hermes Wakeword Pipe Voice Pipeline
 After=network-online.target sound.target
 Wants=network-online.target
 
@@ -87,8 +87,8 @@ Environment=\"PATH=${HERMES_VENV}/bin:/usr/bin:/bin\"
 Environment=\"ONNXRUNTIME_LOG_SEVERITY=3\"
 ExecStartPre=/bin/bash -c 'amixer -c 2 set PCM 100% 2>/dev/null || true'
 ExecStartPre=/bin/bash -c 'pkill -f arecord.*plughw 2>/dev/null || true'
-ExecStart=${HERMES_VENV}/bin/python3 -u ${VOICE_DIR}/beets_voice_full.py
-ExecStop=/bin/bash -c 'pkill -f beets_voice_full.py'
+ExecStart=${HERMES_VENV}/bin/python3 -u ${VOICE_DIR}/hermes_voice.py
+ExecStop=/bin/bash -c 'pkill -f hermes_voice.py'
 Restart=always
 RestartSec=5
 LimitNOFILE=4096
@@ -98,7 +98,7 @@ WantedBy=multi-user.target"
 
 if systemctl --user list-units &>/dev/null; then
     mkdir -p "${HOME}/.config/systemd/user"
-    echo "$SERVICE_CONTENT" > "${HOME}/.config/systemd/user/pihermes-voice.service"
+    echo "$SERVICE_CONTENT" > "${HOME}/.config/systemd/user/hermes-wakeword-pipe-voice.service"
     systemctl --user daemon-reload
     echo -e "${GREEN}+ User systemd service installed${NC}"
     echo ""
@@ -107,13 +107,13 @@ if systemctl --user list-units &>/dev/null; then
     echo -e "${GREEN}============================================${NC}"
     echo ""
     echo "  Start voice pipeline:"
-    echo "    systemctl --user enable --now pihermes-voice"
+    echo "    systemctl --user enable --now hermes-wakeword-pipe-voice"
     echo ""
     echo "  View dashboard:"
-    echo "    http://localhost:9119 -> PiHermes tab"
+    echo "    http://localhost:9119 -> Hermes Wakeword Pipe tab"
     echo ""
     echo "  Test: say 'Hey Bob' to your Pi!"
 else
     echo -e "${YELLOW}! Could not install systemd service (not running under systemd?)${NC}"
-    echo "  Manual start: python3 ${VOICE_DIR}/beets_voice_full.py"
+    echo "  Manual start: python3 ${VOICE_DIR}/hermes_voice.py"
 fi

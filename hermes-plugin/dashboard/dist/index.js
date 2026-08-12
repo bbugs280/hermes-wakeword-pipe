@@ -1,5 +1,5 @@
 (function() {
-  /* PiHermes dashboard tab — status + config for voice pipeline */
+  /* Hermes Wakeword Pipe dashboard tab — status + config for voice pipeline */
 
   var SDK = window.__HERMES_PLUGIN_SDK__;
   var React = SDK.React;
@@ -12,7 +12,7 @@
   var Button = SDK.components.Button;
   var Badge = SDK.components.Badge;
 
-  function PiHermesPage() {
+  function HermesWakewordPipePage() {
     var _status = useState("loading");  // loading | running | stopped | error
     var status = _status[0];
     var setStatus = _status[1];
@@ -39,7 +39,7 @@
     }
 
     function fetchStatus() {
-      apiFetch("/api/plugins/pihermes/status")
+      apiFetch("/api/plugins/hermes-wakeword-pipe/status")
         .then(function(r) { return r.json(); })
         .then(function(data) {
           setStatus(data.pipeline_running ? "running" : "stopped");
@@ -50,7 +50,7 @@
     }
 
     function fetchConfig() {
-      apiFetch("/api/plugins/pihermes/config")
+      apiFetch("/api/plugins/hermes-wakeword-pipe/config")
         .then(function(r) { return r.json(); })
         .then(function(data) { setConfig(data); })
         .catch(function() {});
@@ -65,7 +65,7 @@
 
     function restartPipeline() {
       setStatus("loading");
-      apiFetch("/api/plugins/pihermes/restart", { method: "POST" })
+      apiFetch("/api/plugins/hermes-wakeword-pipe/restart", { method: "POST" })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.success) { setTimeout(fetchStatus, 3000); }
@@ -77,7 +77,7 @@
     function saveConfig() {
       if (!config) return;
       setSaveMsg("Saving...");
-      apiFetch("/api/plugins/pihermes/config", {
+      apiFetch("/api/plugins/hermes-wakeword-pipe/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config)
@@ -101,7 +101,7 @@
       // ── Status Card ──
       React.createElement(Card, null,
         React.createElement(CardHeader, null,
-          React.createElement(CardTitle, null, "PiHermes Voice Pipeline")
+          React.createElement(CardTitle, null, "Hermes Wakeword Pipe")
         ),
         React.createElement(CardContent, null,
           React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" } },
@@ -283,5 +283,5 @@
     );
   }
 
-  window.__HERMES_PLUGINS__.register("pihermes", PiHermesPage);
+  window.__HERMES_PLUGINS__.register("hermes-wakeword-pipe", HermesWakewordPipePage);
 })();

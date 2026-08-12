@@ -1,7 +1,7 @@
-name: pihermes
+name: hermes-wakeword-pipe
 version: "0.4.0"
 description: >
-  PiHermes — AI Voice Kit admin console. Manage your Raspberry Pi voice assistant:
+  Hermes Wakeword Pipe — AI Voice Kit admin console. Manage your Linux voice assistant:
   wake word config, voice settings, pipeline status, and one-click restart.
   All from the Hermes dashboard.
 requires_env: []

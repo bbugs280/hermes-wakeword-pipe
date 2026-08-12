@@ -1,8 +1,8 @@
-# PiHermes — AI Voice Kit for Raspberry Pi
+# Hermes Wakeword Pipe — AI Voice Kit for Linux
 
 **"Your Pi. Your AI. Our shell. Plug in and talk."**
 
-PiHermes turns any Raspberry Pi 5 into a voice-controlled AI assistant. It uses [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research as the brain, with a self-contained voice pipeline (wake word → speech-to-text → AI → text-to-speech) that runs entirely on-device.
+Hermes Wakeword Pipe turns any Linux machine into a voice-controlled AI assistant. It uses [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research as the brain, with a self-contained voice pipeline (wake word → speech-to-text → AI → text-to-speech) that runs entirely on-device.
 
 ## 🎤 What It Does
 
@@ -28,13 +28,13 @@ PiHermes turns any Raspberry Pi 5 into a voice-controlled AI assistant. It uses 
 ## ⚡ Quick Install (DIY)
 
 ```bash
-git clone https://github.com/bbugs280/pihermes
-cd pihermes
+git clone https://github.com/bbugs280/hermes-wakeword-pipe
+cd hermes-wakeword-pipe
 bash setup.sh
 ```
 
 This installs:
-- Voice pipeline (`beets_voice_full.py`) + systemd service
+- Voice pipeline (`hermes_voice.py`) + systemd service
 - Hermes dashboard plugin (admin console)
 - openWakeWord + custom wake word model
 - Piper TTS + voice models
@@ -43,12 +43,12 @@ This installs:
 ## 📦 What's Inside
 
 ```
-pihermes/
-├── beets_voice_full.py        ← Voice pipeline (wake → STT → Hermes → TTS)
+hermes-wakeword-pipe/
+├── hermes_voice.py        ← Voice pipeline (wake → STT → Hermes → TTS)
 ├── setup.sh                    ← One-command installer
 ├── hermes-plugin/              ← Hermes Agent plugin
 │   ├── plugin.yaml
-│   ├── __init__.py             ← Tools: pihermes_status, pihermes_restart
+│   ├── __init__.py             ← Tools: hermes-wakeword-pipe_status, hermes-wakeword-pipe_restart
 │   ├── dashboard/
 │   │   ├── manifest.json
 │   │   ├── dist/index.js       ← Admin console tab
@@ -65,7 +65,7 @@ pihermes/
 
 ## 🔧 Requirements
 
-- Raspberry Pi 5 (or Pi 4 with USB audio dongle)
+- Linux machine (or any Linux with USB audio)
 - USB microphone + speaker (or combo dongle)
 - Hermes Agent installed
 - LLM API key (any Hermes-supported provider)
@@ -75,7 +75,7 @@ pihermes/
 ## 🏗️ Architecture
 
 ```
-USB Audio Dongle          Raspberry Pi 5
+USB Audio Dongle          Linux machine
 ┌──────────────┐         ┌──────────────────────────┐
 │ arecord (mic)│  PCM    │ openWakeWord (onnx)      │
 │      ↕       │←───────→│  → Wake word detection   │
@@ -93,7 +93,7 @@ USB Audio Dongle          Raspberry Pi 5
 
 ## 🎯 Kit Enclosure
 
-The PiHermes enclosure is more than a 3D-printed shell. Each kit includes:
+The Hermes Wakeword Pipe enclosure is more than a 3D-printed shell. Each kit includes:
 
 - **Premium Beets3D enclosure** — 3D-printed in sandstone or SLA resin
 - **USB-C power supply** — powers your Pi 5, no separate adapter needed
@@ -106,7 +106,7 @@ Design goals: the enclosure doubles as an acoustic chamber for the speaker, incl
 ## 🌐 Community
 
 - **Hermes Agent:** [github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
-- **PiHermes discussions:** [GitHub Discussions](https://github.com/bbugs280/pihermes/discussions)
+- **Hermes Wakeword Pipe discussions:** [GitHub Discussions](https://github.com/bbugs280/hermes-wakeword-pipe/discussions)
 
 ## 📄 License
 
