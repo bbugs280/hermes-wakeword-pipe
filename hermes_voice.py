@@ -21,8 +21,8 @@ SAMPLE_RATE = 16000
 CHUNK_MS = 80
 CHUNK_SIZE = int(SAMPLE_RATE * CHUNK_MS / 1000)
 
-AUDIO_DEVICE = os.environ.get("HERMES_VOICE_MIC", "plughw:2,0")
-SPEAKER_DEVICE = os.environ.get("HERMES_VOICE_SPEAKER", "plughw:3,0")
+AUDIO_DEVICE = os.environ.get("HERMES_VOICE_MIC", "plughw:1,0")
+SPEAKER_DEVICE = os.environ.get("HERMES_VOICE_SPEAKER", "plughw:2,0")
 
 SILENCE_THRESHOLD = 40
 SILENCE_DURATION = 1.5
@@ -69,6 +69,7 @@ MAX_TOKENS = 80
 
 # ── Load dashboard config (overrides defaults) ─────────
 _config_path = str(Path.home() / ".hermes" / "hermes-wakeword-pipe_config.json")
+_cfg = {}
 try:
     with open(_config_path) as f:
         _cfg = json.load(f)
@@ -76,12 +77,37 @@ try:
         WAKE_WORD = _cfg["wake_word"]
     if _cfg.get("wake_threshold") is not None:
         WAKE_THRESHOLD = float(_cfg["wake_threshold"])
-    if _cfg.get("tts_voice"):
-        PIPER_MODEL = str(Path.home() / ".hermes/piper-voices" / f"{_cfg['tts_voice']}.onnx")
     if _cfg.get("max_tokens") is not None:
         MAX_TOKENS = int(_cfg["max_tokens"])
 except Exception:
     pass  # use defaults
+
+# ── Derive assistant identity from wake word ──────────
+# e.g. "hey_jarvis" -> "Jarvis", "hey_bob" -> "Bob", "computer" -> "Computer"
+_ASSISTANT_NAME = WAKE_WORD.replace("_", " ").replace("-", " ").strip()
+_ASSISTANT_NAME = _ASSISTANT_NAME.removeprefix("hey ").strip()
+ASSISTANT_NAME = " ".join(w.capitalize() for w in _ASSISTANT_NAME.split()) or "Assistant"
+
+# ── TTS voice: ensure selected model exists, else fallback ──
+def _resolve_piper_model(cfg_voice: str) -> str:
+    """Return path to the requested voice onnx, falling back to any available .onnx."""
+    voices_dir = Path.home() / ".hermes" / "piper-voices"
+    if cfg_voice:
+        candidate = voices_dir / f"{cfg_voice}.onnx"
+        if candidate.exists():
+            return str(candidate)
+    # fallback: any .onnx in the voices dir
+    try:
+        any_voice = sorted(voices_dir.glob("*.onnx"))
+        if any_voice:
+            return str(any_voice[0])
+    except Exception:
+        pass
+    return str(voices_dir / "en_US-lessac-medium.onnx")
+
+PIPER_MODEL = _resolve_piper_model(_cfg.get("tts_voice", ""))
+# Human-readable voice name for logs (from model filename stem)
+PIPER_VOICE_NAME = Path(PIPER_MODEL).stem if PIPER_MODEL else "unknown"
 
 
 def log(msg: str):
@@ -123,13 +149,18 @@ def record_until_silence(proc_stdout) -> bytes | None:
     max_frames = int(MAX_RECORD_SECS * 1000 / VAD_FRAME_MS)
     frame_bytes = int(SAMPLE_RATE * VAD_FRAME_MS / 1000) * 2
 
+    import _webrtcvad
+    n_samples = frame_bytes // 2  # 16-bit mono -> samples = bytes / 2
     for i in range(max_frames):
         raw = proc_stdout.read(frame_bytes)
         if not raw or len(raw) < frame_bytes:
             break
         frames.append(raw)
 
-        is_speech = vad.is_speech(raw, SAMPLE_RATE)
+        # Use the C extension directly: frame_length must be in SAMPLES.
+        # The webrtcvad.py wrapper passes len(bytes)=960 which the C code
+        # reads as 960 samples (60ms) -> invalid -> "Error while processing frame".
+        is_speech = _webrtcvad.process(vad._vad, SAMPLE_RATE, raw, n_samples)
 
         if is_speech:
             speech_detected = True
@@ -142,11 +173,11 @@ def record_until_silence(proc_stdout) -> bytes | None:
             break
 
     if not speech_detected:
-        log("\u26a0 No speech detected by VAD")
+        log("No speech detected by VAD")
         return None
 
     duration = len(frames) * VAD_FRAME_MS / 1000
-    log(f"\U0001f3a4 Recorded {duration:.1f}s")
+    log(f"Recorded {duration:.1f}s")
     return b"".join(frames)
 
 
@@ -241,7 +272,7 @@ def ask_hermes(text: str) -> str:
         "model": "hermes-agent",
         "messages": [
             {"role": "system", "content": (
-                "You are Bob, a voice assistant. Answer in ONE short sentence only. "
+                f"You are {ASSISTANT_NAME}, a voice assistant. Answer in ONE short sentence only. "
                 "Under 20 words. No lists, no markdown, no emoji. "
                 "Do NOT use tools — answer from your knowledge immediately."
             )},
@@ -312,7 +343,7 @@ def main():
 
     log("=" * 55)
     log("Hermes Wakeword Pipe Voice v21 — Production")
-    log(f"  Wake: '{WAKE_WORD}' | STT: cloud qwen3-asr-flash | TTS: Piper lessac (female) | VAD: WebRTC")
+    log(f"  Wake: '{WAKE_WORD}' | STT: cloud qwen3-asr-flash | TTS: Piper {PIPER_VOICE_NAME} | VAD: WebRTC")
     log(f"  max_tokens: 80 | threshold: {WAKE_THRESHOLD} | cooldown: {WAKE_COOLDOWN}s")
     log(f"  Mic: {AUDIO_DEVICE} | Speaker: {SPEAKER_DEVICE}")
     log("=" * 55)
@@ -388,6 +419,10 @@ def main():
             if score > WAKE_THRESHOLD and time.time() > cooldown_until:
                 t_cycle = time.time()
                 log(f"🔔 Wake word! (score: {score:.3f})")
+                cooldown_until = time.time() + WAKE_COOLDOWN
+
+                # Restore the proven architecture: kill the wake-word arecord,
+                # start a FRESH arecord for speech capture, read clean VAD frames.
                 threading.Thread(target=play_raw, args=(START_CHIME,), daemon=True).start()
 
                 mic_proc.terminate(); mic_proc.wait()
@@ -427,7 +462,7 @@ def main():
                     cooldown_until = time.time() + WAKE_COOLDOWN
                     continue
 
-                log(f'🤔 Asking Bob: "{query_text}"...')
+                log(f'🤔 Asking {ASSISTANT_NAME}: "{query_text}"...')
                 t_api = time.time()
                 # Progress dots while waiting for API (feels faster)
                 progress_done = threading.Event()

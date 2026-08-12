@@ -8,8 +8,6 @@ import time
 from pathlib import Path
 
 router = APIRouter()
-PIPELINE_SCRIPT = str(Path.home() / "hermes_voice.py")
-LOG_PATH = "/tmp/voice_v21.log"
 CONFIG_PATH = str(Path.home() / ".hermes" / "hermes-wakeword-pipe_config.json")
 
 
@@ -24,8 +22,8 @@ def _run(cmd: list[str], timeout: int = 10) -> tuple[bool, str, str]:
 
 
 def _pipeline_running() -> bool:
-    ok, stdout, _ = _run(["pgrep", "-f", "hermes_voice.py"])
-    return ok and len(stdout) > 0
+    ok, stdout, _ = _run(["systemctl", "--user", "is-active", "butler-voice"])
+    return ok and "active" in stdout
 
 
 def _load_config() -> dict:
@@ -35,7 +33,7 @@ def _load_config() -> dict:
     except (FileNotFoundError, json.JSONDecodeError):
         return {
             "tts_voice": "en_US-lessac-medium",
-            "wake_word": "hey_bob",
+            "wake_word": "hey_jarvis",
             "wake_threshold": 0.65,
             "stt_provider": "cloud",
             "stt_endpoint": "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/paraformer-realtime-v2",
@@ -53,7 +51,7 @@ def _save_config(config: dict):
 @router.get("/status")
 async def get_status(request: Request):
     running = _pipeline_running()
-    log_ok, log_out, _ = _run(["tail", "-5", LOG_PATH])
+    log_ok, log_out, _ = _run(["journalctl", "--user", "-u", "butler-voice", "--no-pager", "-n", "10", "-o", "cat"])
     recent_log = log_out if log_ok else "log unavailable"
 
     uptime = ""
@@ -72,22 +70,10 @@ async def get_status(request: Request):
 
 @router.post("/restart")
 async def restart_pipeline(request: Request):
-    # Kill existing
-    _run(["pkill", "-f", "hermes_voice.py"])
-    time.sleep(1)
-
-    # Start fresh
-    venv_python = os.path.expanduser("~/.hermes/hermes-agent/venv/bin/python3")
-    try:
-        subprocess.Popen(
-            [venv_python, "-u", PIPELINE_SCRIPT],
-            stdout=open(LOG_PATH, "w"),
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-            cwd=str(Path.home()),
-        )
-    except Exception as e:
-        return {"success": False, "message": f"Start failed: {e}"}
+    # Restart via systemd — the single source of truth for pipeline lifecycle
+    ok, stdout, stderr = _run(["systemctl", "--user", "restart", "butler-voice"])
+    if not ok:
+        return {"success": False, "message": f"systemctl restart failed: {stderr}"}
 
     time.sleep(4)
     running = _pipeline_running()
@@ -128,27 +114,12 @@ async def update_config(
             changes[key] = val
 
     _save_config(config)
-    _apply_config_to_script(config)
 
     return {
         "success": True,
         "changes": changes,
         "note": "Restart pipeline for changes to take effect",
     }
-
-
-def _apply_config_to_script(config: dict):
-    script_path = PIPELINE_SCRIPT
-    if not os.path.exists(script_path):
-        return
-    import re
-    with open(script_path) as f:
-        content = f.read()
-    content = re.sub(r'"max_tokens": \d+', f'"max_tokens": {config["max_tokens"]}', content)
-    content = re.sub(r'WAKE_THRESHOLD = [\d.]+', f'WAKE_THRESHOLD = {config["wake_threshold"]}', content)
-    content = re.sub(r'WAKE_WORD = "[^"]*"', f'WAKE_WORD = "{config["wake_word"]}"', content)
-    with open(script_path, "w") as f:
-        f.write(content)
 
 
 @router.get("/voices")

@@ -60,16 +60,18 @@ mkdir -p "$VOICE_DIR"
 cp "$REPO_DIR/hermes_voice.py" "$VOICE_DIR/"
 echo -e "${GREEN}+ Pipeline installed to $VOICE_DIR${NC}"
 
-# Download Piper voice model if not present
+# Download Piper voice models if not present
 mkdir -p "$PIPER_VOICES"
-if [ ! -f "$PIPER_VOICES/en_US-lessac-medium.onnx" ]; then
-    echo -e "${YELLOW}  Downloading Piper voice (en_US-lessac-medium, 63MB)...${NC}"
-    curl -sL -o "$PIPER_VOICES/en_US-lessac-medium.onnx" \
-        "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx"
-    curl -sL -o "$PIPER_VOICES/en_US-lessac-medium.onnx.json" \
-        "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json"
-    echo -e "${GREEN}  + Voice model downloaded${NC}"
-fi
+_voice_base="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US"
+for _voice in "lessac/medium/en_US-lessac-medium" "ryan/high/en_US-ryan-high" "ryan/medium/en_US-ryan-medium"; do
+    _voice_name="${_voice##*/}"
+    if [ ! -f "$PIPER_VOICES/${_voice_name}.onnx" ]; then
+        echo -e "${YELLOW}  Downloading Piper voice (${_voice_name})...${NC}"
+        curl -sL -o "$PIPER_VOICES/${_voice_name}.onnx" "$_voice_base/${_voice}.onnx"
+        curl -sL -o "$PIPER_VOICES/${_voice_name}.onnx.json" "$_voice_base/${_voice}.onnx.json"
+        echo -e "${GREEN}  + Voice model downloaded${NC}"
+    fi
+done
 
 # ── 5. Install systemd service ──────────────────────
 echo -e "${YELLOW}[5/5] Installing systemd service...${NC}"
