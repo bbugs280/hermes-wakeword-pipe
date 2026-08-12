@@ -46,7 +46,7 @@ def _load_api_key() -> str:
 HERMES_API_KEY=_load_api_key()
 # Cloud ASR (DashScope MaaS qwen3-asr-flash)
 ASR_ENABLED = True
-ASR_KEY = "***REMOVED***"
+ASR_KEY = os.environ.get("HERMES_VOICE_ASR_KEY", "")
 ASR_BASE = "https://ws-4jinhjc7i3rl678j.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
 ASR_MODEL = "qwen3-asr-flash"
 ASR_TIMEOUT = 10
@@ -61,6 +61,23 @@ WHISPER_CLI = str(Path.home() / "whisper-bin-ubuntu-arm64/whisper-cli")
 WHISPER_MODEL = str(Path.home() / "ggml-tiny.en.bin")
 WHISPER_LIB = str(Path.home() / "whisper-bin-ubuntu-arm64")
 PIPER_MODEL = str(Path.home() / ".hermes/piper-voices/en_US-lessac-medium.onnx")
+MAX_TOKENS = 80
+
+# ── Load dashboard config (overrides defaults) ─────────
+_config_path = str(Path.home() / ".hermes" / "hermes-wakeword-pipe_config.json")
+try:
+    with open(_config_path) as f:
+        _cfg = json.load(f)
+    if _cfg.get("wake_word"):
+        WAKE_WORD = _cfg["wake_word"]
+    if _cfg.get("wake_threshold") is not None:
+        WAKE_THRESHOLD = float(_cfg["wake_threshold"])
+    if _cfg.get("tts_voice"):
+        PIPER_MODEL = str(Path.home() / ".hermes/piper-voices" / f"{_cfg['tts_voice']}.onnx")
+    if _cfg.get("max_tokens") is not None:
+        MAX_TOKENS = int(_cfg["max_tokens"])
+except Exception:
+    pass  # use defaults
 
 
 def log(msg: str):

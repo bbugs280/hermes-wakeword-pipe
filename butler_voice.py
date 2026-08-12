@@ -45,17 +45,37 @@ HERMES_API_KEY = _load_api_key()
 
 # Cloud ASR (DashScope MaaS qwen3-asr-flash)
 ASR_ENABLED = True
-ASR_KEY = "***REMOVED***"
+ASR_KEY = os.environ.get("HERMES_VOICE_ASR_KEY", "")
 ASR_BASE = "https://ws-4jinhjc7i3rl678j.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
 ASR_MODEL = "qwen3-asr-flash"
 ASR_TIMEOUT = 10
 
 # Piper TTS
 PIPER_MODEL = str(Path.home() / ".hermes/piper-voices/en_US-lessac-medium.onnx")
+MAX_TOKENS = 80
+
+# ── Load dashboard config (overrides defaults) ─────────
+_config_path = str(Path.home() / ".hermes" / "hermes-wakeword-pipe_config.json")
+try:
+    with open(_config_path) as f:
+        _cfg = json.load(f)
+    if _cfg.get("wake_word"):
+        WAKE_WORD = _cfg["wake_word"]
+    if _cfg.get("wake_threshold") is not None:
+        WAKE_THRESHOLD = float(_cfg["wake_threshold"])
+    if _cfg.get("tts_voice"):
+        PIPER_MODEL = str(Path.home() / ".hermes/piper-voices" / f"{_cfg['tts_voice']}.onnx")
+    if _cfg.get("max_tokens") is not None:
+        MAX_TOKENS = int(_cfg["max_tokens"])
+except Exception:
+    pass  # use defaults
 
 
 def log(msg: str):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+# Log what config we loaded (now that log() is defined)
+log(f"Config: wake={WAKE_WORD} threshold={WAKE_THRESHOLD} tts_voice={Path(PIPER_MODEL).stem}")
 
 
 def tone(freq: int, ms: int, sample_rate: int = 22050) -> np.ndarray:
