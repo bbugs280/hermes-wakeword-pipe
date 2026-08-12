@@ -14,33 +14,37 @@ from pathlib import Path
 import wave
 
 # ── Configuration ──────────────────────────────────────
-WAKE_WORD = "hey_bob"
+WAKE_WORD = os.environ.get("HERMES_VOICE_WAKE_WORD", "hey_jarvis")
 WAKE_THRESHOLD = 0.65
 WAKE_COOLDOWN = 3.0
 SAMPLE_RATE = 16000
 CHUNK_MS = 80
 CHUNK_SIZE = int(SAMPLE_RATE * CHUNK_MS / 1000)
 
-AUDIO_DEVICE = "plughw:2,0"
-SPEAKER_DEVICE = "plughw:3,0"
+AUDIO_DEVICE = os.environ.get("HERMES_VOICE_MIC", "plughw:2,0")
+SPEAKER_DEVICE = os.environ.get("HERMES_VOICE_SPEAKER", "plughw:3,0")
 
 SILENCE_THRESHOLD = 40
 SILENCE_DURATION = 1.5
 MAX_RECORD_SECS = 10
 MIN_RECORD_SECS = 0.5
 
-HERMES_API_URL = "http://localhost:8642/v1/chat/completions"
+HERMES_API_URL = os.environ.get("HERMES_VOICE_API_URL", "http://localhost:8642/v1/chat/completions")
 
 def _load_api_key() -> str:
-    env_path = str(Path.home() / ".hermes/.env")
-    try:
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("API_SERVER_KEY="):
-                    return line.split("=", 1)[1]
-    except Exception:
-        pass
+    # Check profile .env first, then default .env
+    for env_path in [
+        str(Path.home() / ".hermes/profiles" / os.environ.get("HERMES_PROFILE", "") / ".env"),
+        str(Path.home() / ".hermes/.env"),
+    ]:
+        try:
+            with open(env_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("API_SERVER_KEY="):
+                        return line.split("=", 1)[1]
+        except Exception:
+            continue
     return ""
 
 HERMES_API_KEY=_load_api_key()
