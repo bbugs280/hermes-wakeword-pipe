@@ -324,12 +324,37 @@ def main():
     test_resp = ask_hermes("Say 'I am online' and nothing else.")
     log(f"API: {test_resp[:60]}")
 
-    speak("Bob ready.")
+    speak("Ready.")
 
     log("Loading wake word model...")
     from openwakeword.model import Model
-    model = Model(wakeword_models=["/home/beets3d/.hermes/hermes-agent/venv/lib/python3.11/site-packages/openwakeword/resources/models/hey_bob_v0.1.onnx"], inference_framework="onnx")
-    log(f"✅ Ready. Say '{WAKE_WORD}' to talk to me.")
+    import glob as _glob
+    
+    # Find the matching .onnx model for the configured wake word
+    _model_dir = str(Path.home() / ".hermes/hermes-agent/venv/lib/python3.11/site-packages/openwakeword/resources/models")
+    _model_patterns = [
+        f"{_model_dir}/{WAKE_WORD.replace(' ', '_')}*.onnx",
+        f"{_model_dir}/hey_{WAKE_WORD.split()[-1] if ' ' in WAKE_WORD else WAKE_WORD}*.onnx",
+    ]
+    _model_path = None
+    for _pat in _model_patterns:
+        _matches = _glob.glob(_pat)
+        if _matches:
+            _model_path = _matches[0]
+            _model_key = Path(_model_path).stem  # e.g. "hey_jarvis_v0.1"
+            break
+    
+    if not _model_path:
+        log(f"⚠️ No .onnx model found for wake word '{WAKE_WORD}'. Trying any model...")
+        _all_models = _glob.glob(f"{_model_dir}/*.onnx")
+        if _all_models:
+            _model_path = _all_models[0]
+            _model_key = Path(_model_path).stem
+        else:
+            raise FileNotFoundError(f"No wake word models found in {_model_dir}")
+    
+    model = Model(wakeword_model_paths=[_model_path])
+    log(f"✅ Ready. Say '{WAKE_WORD}' to talk to me. (model: {_model_key})")
 
     arecord_cmd = ["arecord", "-q", "-D", AUDIO_DEVICE, "-f", "S16_LE", "-r", str(SAMPLE_RATE), "-c", "1"]
 
@@ -358,7 +383,7 @@ def main():
 
             audio = np.frombuffer(raw, dtype=np.int16)
             prediction = model.predict(audio)
-            score = prediction.get("hey_bob_v0.1", 0)
+            score = prediction.get(_model_key, 0)
 
             if score > WAKE_THRESHOLD and time.time() > cooldown_until:
                 t_cycle = time.time()
