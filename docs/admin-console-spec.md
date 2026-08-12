@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Hermes Wakeword Pipe admin console is a **dashboard plugin** for Hermes Agent. It appears as a "Hermes Wakeword Pipe" tab in the Hermes web dashboard (http://<pi>:9119) and provides configuration and monitoring for the voice pipeline.
+The Hermes Wakeword Pipe admin console is a **dashboard plugin** for Hermes Agent. It appears as a "Hermes Wakeword Pipe" tab in the Hermes web dashboard (http://<host>:9119) and provides configuration and monitoring for the voice pipeline.
 
 ## Architecture
 

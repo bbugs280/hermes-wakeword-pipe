@@ -25,9 +25,9 @@ systemctl --user enable --now hermes-wakeword-pipe-voice
 
 ## Verify
 
-1. Open Hermes dashboard: `http://<pi-ip>:9119`
+1. Open Hermes dashboard: `http://<host>:9119`
 2. Click the **Hermes Wakeword Pipe** tab — you should see "Running" status
-3. Say **"Hey Bob"** near the Pi — it should beep and respond
+3. Say **"Hey Bob"** — it should beep and respond
 
 ## Configuration
 

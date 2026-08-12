@@ -23,7 +23,7 @@ VOICE_DIR="${HOME}/.hermes/voice"
 PIPER_VOICES="${HOME}/.hermes/piper-voices"
 
 echo -e "${GREEN}============================================${NC}"
-echo -e "${GREEN}   Hermes Wakeword Pipe Voice Kit Installer${NC}"
+echo -e "${GREEN}   Hermes Wakeword Pipe Voice Pipeline Installer${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo ""
 
@@ -112,7 +112,7 @@ if systemctl --user list-units &>/dev/null; then
     echo "  View dashboard:"
     echo "    http://localhost:9119 -> Hermes Wakeword Pipe tab"
     echo ""
-    echo "  Test: say 'Hey Bob' to your Pi!"
+    echo "  Test: say 'Hey Bob' to start talking!"
 else
     echo -e "${YELLOW}! Could not install systemd service (not running under systemd?)${NC}"
     echo "  Manual start: python3 ${VOICE_DIR}/hermes_voice.py"
