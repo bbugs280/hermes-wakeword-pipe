@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hermes Wakeword Pipe voice pipeline — v0.4.0: Production voice assistant for Linux.
+"""Hermes Wakeword Pipe voice pipeline — v0.5.0: Production voice assistant for Linux.
 
 Full pipeline: openWakeWord -> WebRTC VAD -> cloud STT (configurable)
 -> Hermes API -> Piper TTS -> speaker

@@ -1,5 +1,5 @@
 name: hermes-wakeword-pipe
-version: "0.4.0"
+version: "0.5.0"
 description: >
   Hermes Wakeword Pipe — AI Voice Kit admin console. Manage your Linux voice assistant:
   wake word config, voice settings, pipeline status, and one-click restart.
